@@ -16,8 +16,7 @@ Bibliothèques : numpy, pandas, matplotlib, scipy, tkinter
 Clonez ce dépôt et installez les dépendances requises :
 ```Bash
 git clone https://github.com/votre-utilisateur/data-transformation-scripts.git
-cd data-transformation-scripts
-pip install -r requirements.txt
+cd datavis
 ```
 ## Utilisation
 Chaque script est autonome et peut être exécuté directement. Consultez les commentaires dans le code pour des instructions spécifiques sur l'utilisation de chaque script.
