@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from scipy import stats
-from scipy.stats import skew
+from scipy.stats import skew, shapiro
 import statsmodels.api as sm
 from dixon import dixon_test
 
@@ -65,6 +65,83 @@ class DataTransformationGUI:
         self.current_sheet = None
         self.create_widgets()
 
+    # Shapiro-Wilk asymétrie et aplatissement
+    def apply_shapiro_test(self):
+        """
+        Perform Shapiro-Wilk test for normality and visualize the results
+        """
+        if self.df is None or self.selected_column is None:
+            messagebox.showerror("Error", "Please load data and select a column first!")
+            return
+
+        try:
+            # Get the data and remove any NaN values
+            data = self.df[self.selected_column].dropna().values
+
+            # Perform Shapiro-Wilk test
+            statistic, p_value = shapiro(data)
+
+            # Create visualization
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+            # Histogram with normal distribution overlay
+            n, bins, patches = ax1.hist(data, bins=30, density=True, alpha=0.7, color='lightblue')
+            mu, sigma = np.mean(data), np.std(data)
+            x = np.linspace(mu - 3*sigma, mu + 3*sigma, 100)
+            ax1.plot(x, stats.norm.pdf(x, mu, sigma), 'r-', lw=2, 
+                    label=f'Normal Dist.\n(μ={mu:.2f}, σ={sigma:.2f})')
+            ax1.set_title('Distribution Plot')
+            ax1.legend()
+
+            # Q-Q plot
+            sm.qqplot(data, line='45', ax=ax2)
+            ax2.set_title('Q-Q Plot')
+
+            plt.tight_layout()
+
+            # Clear previous plots
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+
+            # Add the new plot to the GUI
+            canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().grid(row=0, column=0)
+
+            # Add statistics text
+            stats_frame = ttk.Frame(self.plot_frame)
+            stats_frame.grid(row=1, column=0, pady=10)
+
+            # Calculate additional normality metrics
+            skewness = skew(data)
+            kurtosis = stats.kurtosis(data)
+
+            result_text = f"""Shapiro-Wilk Test Results:
+            Statistic: {statistic:.4f}
+            p-value: {p_value:.4f}
+
+            Additional Metrics:
+            Skewness: {skewness:.4f} (0 = perfectly symmetric)
+            Kurtosis: {kurtosis:.4f} (0 = normal distribution)
+
+            Interpretation:
+            {'Data is NOT normally distributed (p < 0.05)' if p_value < 0.05 
+            else 'Data appears to be normally distributed (p >= 0.05)'}
+
+            Sample size: {len(data)} observations
+            """
+
+            ttk.Label(stats_frame, text=result_text, justify=tk.LEFT).grid(row=0, column=0, padx=20)
+
+            # Also show a message box with the basic results
+            messagebox.showinfo("Shapiro-Wilk Test Result", 
+                              f"Test Statistic: {statistic:.4f}\n"
+                              f"p-value: {p_value:.4f}\n\n"
+                              f"{'Data is NOT normally distributed (p < 0.05)' if p_value < 0.05 else 'Data appears to be normally distributed (p >= 0.05)'}")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error applying Shapiro-Wilk test: {str(e)}")
+        # Dixon
     def dixon_test(data, alpha=0.05):
            """
                Perform Dixon's Q test for outliers.
@@ -161,6 +238,8 @@ class DataTransformationGUI:
                   command=lambda: self.apply_transformation("log_n")).grid(row=0, column=3, padx=5)
         ttk.Button(transform_frame, text="Dixon Test",
                     command=self.apply_dixon_test).grid(row=2, column=0, padx=5)
+        ttk.Button(transform_frame, text="Shapiro-Wilk Test",
+                  command=self.apply_shapiro_test).grid(row=2, column=1, padx=5)
 
         # Results frame
         self.results_frame = ttk.LabelFrame(main_frame, text="Results", padding="5")
@@ -169,7 +248,6 @@ class DataTransformationGUI:
         self.plot_frame = ttk.Frame(self.results_frame)
         self.plot_frame.grid(row=0, column=0, pady=5)
 
-# Suite de la classe DataTransformationGUI avec mÃ©thodes de traitement
     def load_file(self, file_type):
         filetypes = [("CSV files", "*.csv"), ("Text files", "*.txt"), ("All files", "*.*")] if file_type == "csv" \
             else [("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
@@ -265,7 +343,6 @@ class DataTransformationGUI:
         self.update_column_list()
         messagebox.showinfo("Success", "Example data loaded successfully!")
 
-# Suite de la classe DataTransformationGUI avec mÃ©thodes de transformation et visualisation
     def normalize_data(self, X):
         try:
             X = X.astype(float)
@@ -327,7 +404,7 @@ class DataTransformationGUI:
                 title = "Log10-transformed"
                 include_qqplot = False
             elif transform_type == "dixon_test":
-                outliers = dixon_test(original_data)
+                outliers = self.dixon_test(original_data)
                 if outliers:
                     messagebox.showinfo("Dixon Test Result", f"Outliers detected: {outliers}")
                 else:
@@ -342,6 +419,7 @@ class DataTransformationGUI:
 
         except Exception as e:
             messagebox.showerror("Error", f"Error applying transformation: {str(e)}")
+
     def apply_dixon_test(self):
         if self.df is None or self.selected_column is None:
             messagebox.showerror("Error", "Please load data and select a column first!")
@@ -410,9 +488,6 @@ class DataTransformationGUI:
         ax.axvline(mean - std, color='orange', linestyle='--')
         ax.axvline(q1, color='green', linestyle=':', label='Quartiles')
         ax.axvline(q3, color='green', linestyle=':')
-
-        # Add skewness
-        ax.text(skewness, skewness, f'Skewness = {skewness:.2f}', transform=ax.transAxes, ha='right', va='top')
 
         ax.set_title(title)
         ax.set_xlabel('Values')
