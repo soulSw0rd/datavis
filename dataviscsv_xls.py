@@ -140,6 +140,8 @@ class DataTransformationGUI:
                   command=lambda: self.apply_transformation("standardize")).grid(row=0, column=1, padx=5)
         ttk.Button(transform_frame, text="Log Transform",
                   command=lambda: self.apply_transformation("log")).grid(row=0, column=2, padx=5)
+        ttk.Button(transform_frame, text="Q-Q Plot",
+                  command=lambda: self.apply_transformation("qq")).grid(row=0, column=3, padx=5)
 
         # Results frame
         self.results_frame = ttk.LabelFrame(main_frame, text="Results", padding="5")
@@ -291,15 +293,30 @@ class DataTransformationGUI:
             elif transform_type == "standardize":
                 transformed_data = self.standardize_data(original_data)
                 title = "Standardized"
-            else:  # log transform
+            elif transform_type == "log":
                 transformed_data = self.log_transform(original_data)
                 title = "Log-transformed"
+            elif transform_type == "qq":
+                self.qq_plot(original_data)
+                return
 
             if transformed_data is not None:
                 self.plot_results(original_data, transformed_data, title)
 
         except Exception as e:
             messagebox.showerror("Error", f"Error applying transformation: {str(e)}")
+
+    def qq_plot(self, data):
+        for widget in self.plot_frame.winfo_children():
+            widget.destroy()
+
+        fig, ax = plt.subplots(figsize=(6, 6))
+        stats.probplot(data, dist="norm", plot=ax)
+        ax.set_title(f"Q-Q Plot\n{self.selected_column}")
+
+        canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+        canvas.draw()
+        canvas.get_tk_widget().grid(row=0, column=0)
 
     def plot_results(self, original_data, transformed_data, title):
         for widget in self.plot_frame.winfo_children():
