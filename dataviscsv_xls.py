@@ -133,13 +133,20 @@ class DataTransformationGUI:
         # Transformation selection
         transform_frame = ttk.LabelFrame(main_frame, text="Transformations", padding="5")
         transform_frame.grid(row=5, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
+        
+        ttk.Label(transform_frame, text="Base:").grid(row=1, column=0, padx=5, sticky=tk.W)
+        self.log_base_var = tk.StringVar(value="2")  # Valeur par défaut
+        ttk.Entry(transform_frame, textvariable=self.log_base_var, width=5).grid(row=1, column=1, padx=5)
 
         ttk.Button(transform_frame, text="Normalize",
                   command=lambda: self.apply_transformation("normalize")).grid(row=0, column=0, padx=5)
         ttk.Button(transform_frame, text="Standardize",
                   command=lambda: self.apply_transformation("standardize")).grid(row=0, column=1, padx=5)
-        ttk.Button(transform_frame, text="Log Transform",
+        ttk.Button(transform_frame, text="Log10",
                   command=lambda: self.apply_transformation("log")).grid(row=0, column=2, padx=5)
+        ttk.Button(transform_frame, text="Log_n",
+           command=lambda: self.apply_transformation("log_n")).grid(row=1, column=2, padx=5)
+
 
         # Results frame
         self.results_frame = ttk.LabelFrame(main_frame, text="Results", padding="5")
@@ -277,6 +284,17 @@ class DataTransformationGUI:
             messagebox.showerror("Error", f"Error in log transformation: {str(e)}")
             return None
 
+    def log_n_transform(self, X, base):
+        try:
+            X = X.astype(float)
+            if np.any(X <= 0):
+                messagebox.showerror("Error", "Log_n transformation requires positive values!")
+                return None
+            return np.log(X) / np.log(base)
+        except Exception as e:
+            messagebox.showerror("Error", f"Error in log_n transformation: {str(e)}")
+            return None
+
     def apply_transformation(self, transform_type):
         if self.df is None or self.selected_column is None:
             messagebox.showerror("Error", "Please load data and select a column first!")
@@ -291,15 +309,20 @@ class DataTransformationGUI:
             elif transform_type == "standardize":
                 transformed_data = self.standardize_data(original_data)
                 title = "Standardized"
-            else:  # log transform
+            elif transform_type == "log":
                 transformed_data = self.log_transform(original_data)
                 title = "Log-transformed"
+            elif transform_type == "log_n":
+                base = float(self.log_base_var.get())
+                transformed_data = self.log_n_transform(original_data, base)
+                title = f"Log_{base}-transformed"
 
             if transformed_data is not None:
                 self.plot_results(original_data, transformed_data, title)
 
         except Exception as e:
             messagebox.showerror("Error", f"Error applying transformation: {str(e)}")
+
 
     def plot_results(self, original_data, transformed_data, title):
         for widget in self.plot_frame.winfo_children():
