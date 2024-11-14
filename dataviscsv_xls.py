@@ -8,7 +8,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from scipy import stats
 from scipy.stats import skew, shapiro
 import statsmodels.api as sm
-from dixon import dixon_test
 
 # --- SCROLLABLE FRAME CLASS ---
 class ScrollableFrame(ttk.Frame):
@@ -68,7 +67,7 @@ class DataTransformationGUI:
     # Shapiro-Wilk asymétrie et aplatissement
     def apply_shapiro_test(self):
         """
-        Perform Shapiro-Wilk test for normality and visualize the results
+        Perform Shapiro-Wilk test for normality and visualize the results with detailed statistics
         """
         if self.df is None or self.selected_column is None:
             messagebox.showerror("Error", "Please load data and select a column first!")
@@ -81,21 +80,181 @@ class DataTransformationGUI:
             # Perform Shapiro-Wilk test
             statistic, p_value = shapiro(data)
 
-            # Create visualization
+            # Calculate additional statistics
+            skewness = skew(data)
+            kurtosis = stats.kurtosis(data)
+            mean = np.mean(data)
+            std = np.std(data)
+            n = len(data)
+
+            # Create figure for visualization
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
             # Histogram with normal distribution overlay
-            n, bins, patches = ax1.hist(data, bins=30, density=True, alpha=0.7, color='lightblue')
-            mu, sigma = np.mean(data), np.std(data)
-            x = np.linspace(mu - 3*sigma, mu + 3*sigma, 100)
-            ax1.plot(x, stats.norm.pdf(x, mu, sigma), 'r-', lw=2, 
-                    label=f'Normal Dist.\n(μ={mu:.2f}, σ={sigma:.2f})')
-            ax1.set_title('Distribution Plot')
-            ax1.legend()
+            n_bins = min(int(np.sqrt(n)), 30)  # Optimal number of bins
+            n, bins, patches = ax1.hist(data, bins=n_bins, density=True, 
+                                      alpha=0.7, color='lightblue', 
+                                      label='Observed Data')
 
-            # Q-Q plot
-            sm.qqplot(data, line='45', ax=ax2)
+            # Add normal distribution curve
+            x = np.linspace(mean - 4*std, mean + 4*std, 100)
+            normal_dist = stats.norm.pdf(x, mean, std)
+            ax1.plot(x, normal_dist, 'r-', lw=2, 
+                    label=f'Normal Distribution\nμ={mean:.2f}\nσ={std:.2f}')
+
+            ax1.set_title('Distribution Plot with Normal Curve')
+            ax1.set_xlabel('Values')
+            ax1.set_ylabel('Density')
+            ax1.legend(loc='upper right')
+
+            # Add vertical lines for key statistics
+            ax1.axvline(mean, color='red', linestyle='--', alpha=0.5)
+            ax1.axvline(mean - std, color='orange', linestyle=':', alpha=0.5)
+            ax1.axvline(mean + std, color='orange', linestyle=':', alpha=0.5)
+
+            # Q-Q plot with improved formatting
+            sm.qqplot(data, line='45', ax=ax2, markerfacecolor='lightblue', 
+                     alpha=0.7, markeredgecolor='blue')
             ax2.set_title('Q-Q Plot')
+            ax2.grid(True, alpha=0.3)
+
+            plt.tight_layout()
+
+            # Clear previous plots
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+
+            # Add the new plot to the GUI
+            canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().grid(row=0, column=0)
+
+            # Add detailed statistics text with proper formatting
+            stats_frame = ttk.Frame(self.plot_frame)
+            stats_frame.grid(row=1, column=0, pady=10)
+
+            result_text = f"""
+    ─── Shapiro-Wilk Test Results ───────────────────────
+    Test Statistic: {statistic:.4f}
+    P-value: {p_value:.4f}
+
+    ─── Distribution Metrics ──────────────────────────
+    • Sample Size: {n} observations
+    • Mean: {mean:.4f}
+    • Standard Deviation: {std:.4f}
+    • Skewness: {skewness:.4f} {'(positively skewed)' if skewness > 0 else '(negatively skewed)' if skewness < 0 else '(symmetric)'}
+    • Kurtosis: {kurtosis:.4f} {'(leptokurtic)' if kurtosis > 0 else '(platykurtic)' if kurtosis < 0 else '(mesokurtic)'}
+
+    ─── Interpretation ────────────────────────────────
+    {'The data significantly deviates from normal distribution (p < 0.05)' 
+    if p_value < 0.05 else 'The data appears to follow a normal distribution (p ≥ 0.05)'}
+
+    ─── Additional Information ─────────────────────────
+    • 68% of data falls between: {mean-std:.4f} and {mean+std:.4f}
+    • 95% of data falls between: {mean-2*std:.4f} and {mean+2*std:.4f}
+    • 99.7% of data falls between: {mean-3*std:.4f} and {mean+3*std:.4f}
+    """
+
+            ttk.Label(stats_frame, text=result_text, justify=tk.LEFT,
+                     font=('Consolas', 10)).grid(row=0, column=0, padx=20)
+
+            # Show summary message box with proper formatting
+            messagebox.showinfo("Shapiro-Wilk Test Result", 
+                f"Test Results:\n"
+                f"• Statistic: {statistic:.4f}\n"
+                f"• P-value: {p_value:.4f}\n\n"
+                f"{'❌ Data is NOT normally distributed (p < 0.05)' if p_value < 0.05 else '✓ Data appears to be normally distributed (p ≥ 0.05)'}")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error applying Shapiro-Wilk test: {str(e)}")
+
+        # Dixon
+    def apply_dixon_test(self):
+        """
+        Apply Dixon's Q test for outlier detection and visualize the results
+        """
+        if self.df is None or self.selected_column is None:
+            messagebox.showerror("Error", "Please load data and select a column first!")
+            return
+
+        try:
+            # Get the data and remove any NaN values
+            data = self.df[self.selected_column].dropna().values.tolist()  # Convert to list for length comparison
+
+            # Check data length
+            if len(data) < 3 or len(data) > 30:
+                messagebox.showerror("Error", 
+                                   "Dixon's test is only valid for sample sizes between 3 and 30.")
+                return
+
+            # Sort the data
+            data = sorted(data)  # Sort as list rather than numpy array
+            n = len(data)
+
+            # Q critical values table for alpha=0.05
+            q_critical = {
+                3: 0.941, 4: 0.765, 5: 0.642, 6: 0.560, 7: 0.507, 8: 0.468,
+                9: 0.437, 10: 0.412, 11: 0.392, 12: 0.376, 13: 0.361, 14: 0.349,
+                15: 0.338, 16: 0.329, 17: 0.320, 18: 0.313, 19: 0.306, 20: 0.300,
+                21: 0.295, 22: 0.290, 23: 0.285, 24: 0.281, 25: 0.277, 26: 0.273,
+                27: 0.270, 28: 0.267, 29: 0.263, 30: 0.260
+            }
+
+            # Calculate Q values
+            q_min = (data[1] - data[0]) / (data[-1] - data[0]) if data[-1] != data[0] else 0
+            q_max = (data[-1] - data[-2]) / (data[-1] - data[0]) if data[-1] != data[0] else 0
+
+            # Identify outliers
+            outliers = []
+            if q_min > q_critical[n]:
+                outliers.append(data[0])
+            if q_max > q_critical[n]:
+                outliers.append(data[-1])
+
+            # Create visualization
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+            # Boxplot with enhanced styling
+            bp = ax1.boxplot(data, patch_artist=True)
+            plt.setp(bp['boxes'], facecolor='lightblue', alpha=0.7)
+            plt.setp(bp['medians'], color='darkblue', linewidth=1.5)
+            plt.setp(bp['whiskers'], color='gray')
+            plt.setp(bp['caps'], color='gray')
+            plt.setp(bp['fliers'], marker='o', markerfacecolor='gray', alpha=0.7)
+
+            ax1.set_title('Boxplot of Data')
+            if outliers:
+                # Mark Dixon outliers in red
+                ax1.plot([1] * len(outliers), outliers, 'ro', 
+                        label='Dixon Outliers', markersize=10)
+                ax1.legend()
+
+            # Add grid for better readability
+            ax1.yaxis.grid(True, linestyle='--', alpha=0.3)
+            ax1.set_ylabel('Values')
+
+            # Histogram with enhanced styling
+            n, bins, patches = ax2.hist(data, bins=min(30, n), density=False,
+                                      alpha=0.7, color='lightblue', 
+                                      edgecolor='black')
+
+            # Add KDE
+            if len(data) > 2:  # KDE needs more than 2 points
+                kde_x = np.linspace(min(data), max(data), 100)
+                kde = stats.gaussian_kde(data)
+                scaled_kde = kde(kde_x) * len(data) * (bins[1] - bins[0])
+                ax2.plot(kde_x, scaled_kde, 'b-', linewidth=2, alpha=0.7)
+
+            if outliers:
+                # Mark Dixon outliers
+                ax2.plot(outliers, [0] * len(outliers), 'ro', 
+                        markersize=10, label='Dixon Outliers')
+                ax2.legend()
+
+            ax2.set_title('Distribution with Outliers')
+            ax2.set_xlabel('Values')
+            ax2.set_ylabel('Frequency')
+            ax2.grid(True, alpha=0.3)
 
             plt.tight_layout()
 
@@ -112,66 +271,38 @@ class DataTransformationGUI:
             stats_frame = ttk.Frame(self.plot_frame)
             stats_frame.grid(row=1, column=0, pady=10)
 
-            # Calculate additional normality metrics
-            skewness = skew(data)
-            kurtosis = stats.kurtosis(data)
+            result_text = f"""Dixon's Q Test Results:
 
-            result_text = f"""Shapiro-Wilk Test Results:
-            Statistic: {statistic:.4f}
-            p-value: {p_value:.4f}
+    Sample Information:
+    • Sample size: {n}
+    • Data range: [{min(data):.3f}, {max(data):.3f}]
+    • Critical Q value (α=0.05): {q_critical[n]:.3f}
 
-            Additional Metrics:
-            Skewness: {skewness:.4f} (0 = perfectly symmetric)
-            Kurtosis: {kurtosis:.4f} (0 = normal distribution)
+    Test Statistics:
+    • Q value (minimum): {q_min:.3f}
+    • Q value (maximum): {q_max:.3f}
 
-            Interpretation:
-            {'Data is NOT normally distributed (p < 0.05)' if p_value < 0.05 
-            else 'Data appears to be normally distributed (p >= 0.05)'}
+    Outliers Detected: {len(outliers)}
+    {f"• Values: {', '.join([f'{x:.3f}' for x in outliers])}" if outliers else "• No outliers detected"}
 
-            Sample size: {len(data)} observations
-            """
+    Note: Dixon's test examines the most extreme values 
+    to determine if they are significantly different from 
+    the rest of the data.
+    """
 
-            ttk.Label(stats_frame, text=result_text, justify=tk.LEFT).grid(row=0, column=0, padx=20)
+            ttk.Label(stats_frame, text=result_text, justify=tk.LEFT,
+                     font=('Consolas', 10)).grid(row=0, column=0, padx=20)
 
-            # Also show a message box with the basic results
-            messagebox.showinfo("Shapiro-Wilk Test Result", 
-                              f"Test Statistic: {statistic:.4f}\n"
-                              f"p-value: {p_value:.4f}\n\n"
-                              f"{'Data is NOT normally distributed (p < 0.05)' if p_value < 0.05 else 'Data appears to be normally distributed (p >= 0.05)'}")
+            # Show summary message box
+            if outliers:
+                messagebox.showinfo("Dixon Test Result", 
+                                  f"Detected {len(outliers)} outlier(s):\n" + 
+                                  "\n".join([f"• {x:.3f}" for x in outliers]))
+            else:
+                messagebox.showinfo("Dixon Test Result", "No outliers detected.")
 
         except Exception as e:
-            messagebox.showerror("Error", f"Error applying Shapiro-Wilk test: {str(e)}")
-        # Dixon
-    def dixon_test(data, alpha=0.05):
-           """
-               Perform Dixon's Q test for outliers.
-               Parameters:
-                   data (array-like): 1D array of numeric data.
-                   alpha (float): Significance level (default is 0.05).
-               Returns:
-                   outliers (list): List of detected outliers.
-           """
-           data = np.sort(data)
-           n = len(data)    
-           if n < 3 or n > 30:
-                   raise ValueError("Dixon's test is only valid for sample sizes between 3 and 30.")    
-                   # Q critical values table for alpha=0.05
-           q_critical = {
-                   3: 0.941, 4: 0.765, 5: 0.642, 6: 0.560, 7: 0.507, 8: 0.468,
-                   9: 0.437, 10: 0.412, 11: 0.392, 12: 0.376, 13: 0.361, 14: 0.349,
-                   15: 0.338, 16: 0.329, 17: 0.320, 18: 0.313, 19: 0.306, 20: 0.300,
-                   21: 0.295, 22: 0.290, 23: 0.285, 24: 0.281, 25: 0.277, 26: 0.273,
-                   27: 0.270, 28: 0.267, 29: 0.263, 30: 0.260
-               }    
-           q_min = (data[1] - data[0]) / (data[-1] - data[0])
-           q_max = (data[-1] - data[-2]) / (data[-1] - data[0]) 
-           outliers = []
-           if q_min > q_critical[n]:
-               outliers.append(data[0])
-           if q_max > q_critical[n]:
-               outliers.append(data[-1])    
-           return outliers
-    
+            messagebox.showerror("Error", f"Error applying Dixon test: {str(e)}")
     def create_widgets(self):
         self.scroll_frame = ScrollableFrame(self.root)
         self.scroll_frame.pack(fill="both", expand=True)
@@ -382,58 +513,71 @@ class DataTransformationGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Error in natural log transformation: {str(e)}")
             return None
-
+        
     def apply_transformation(self, transform_type):
+        """
+        Apply the selected transformation to the data and display results
+        
+        Parameters:
+            transform_type (str): Type of transformation to apply ('normalize', 'standardize', 'log10', or 'log_n')
+        """
         if self.df is None or self.selected_column is None:
             messagebox.showerror("Error", "Please load data and select a column first!")
             return
-
+    
         try:
-            original_data = self.df[self.selected_column].values
-
+            # Get original data
+            original_data = self.df[self.selected_column].dropna().values
+            
+            # Verify we have data to transform
+            if len(original_data) == 0:
+                messagebox.showerror("Error", "No valid data to transform!")
+                return
+    
+            # Apply the selected transformation
             if transform_type == "normalize":
                 transformed_data = self.normalize_data(original_data)
                 title = "Normalized"
                 include_qqplot = True
+                
             elif transform_type == "standardize":
                 transformed_data = self.standardize_data(original_data)
                 title = "Standardized"
                 include_qqplot = True
+                
             elif transform_type == "log10":
                 transformed_data = self.log_transform(original_data)
                 title = "Log10-transformed"
                 include_qqplot = False
-            elif transform_type == "dixon_test":
-                outliers = self.dixon_test(original_data)
-                if outliers:
-                    messagebox.showinfo("Dixon Test Result", f"Outliers detected: {outliers}")
-                else:
-                    messagebox.showinfo("Dixon Test Result", "No outliers detected.")
-            else:  # log_n
+                
+            elif transform_type == "log_n":
                 transformed_data = self.log_n_transform(original_data)
                 title = "Natural Log-transformed"
                 include_qqplot = False
-
+                
+            else:
+                messagebox.showerror("Error", f"Unknown transformation type: {transform_type}")
+                return
+    
+            # If transformation was successful, display results
             if transformed_data is not None:
+                # Add transformed data as new column
+                new_col_name = f"{self.selected_column}_{transform_type}"
+                self.df[new_col_name] = transformed_data
+                
+                # Update the column list in the GUI
+                self.update_column_list()
+                
+                # Plot the results
                 self.plot_results(original_data, transformed_data, title, include_qqplot)
-
+                
+                # Show success message
+                messagebox.showinfo("Success", 
+                                  f"Transformation applied successfully!\n"
+                                  f"New column '{new_col_name}' has been added to the dataset.")
+    
         except Exception as e:
             messagebox.showerror("Error", f"Error applying transformation: {str(e)}")
-
-    def apply_dixon_test(self):
-        if self.df is None or self.selected_column is None:
-            messagebox.showerror("Error", "Please load data and select a column first!")
-            return
-        try:
-            data = self.df[self.selected_column].dropna().values
-            outliers = dixon_test(data)
-        
-            if outliers:
-                messagebox.showinfo("Dixon Test Result", f"Detected outliers: {outliers}")
-            else:
-                messagebox.showinfo("Dixon Test Result", "No outliers detected.")
-        except Exception as e:
-            messagebox.showerror("Error", f"Error applying Dixon test: {str(e)}")
 
     def plot_results(self, original_data, transformed_data, title, include_qqplot):
         for widget in self.plot_frame.winfo_children():
@@ -466,6 +610,15 @@ class DataTransformationGUI:
         self._add_statistics_text(original_data, transformed_data)
 
     def _plot_histogram_with_stats_and_box(self, ax, data, title):
+        """
+        Create a detailed histogram with statistical overlay and boxplot
+
+        Parameters:
+            ax (matplotlib.axes.Axes): The axes to plot on
+            data (numpy.ndarray): The data to plot
+            title (str): The title for the plot
+        """
+        # Calculate statistics
         mean = np.mean(data)
         median = np.median(data)
         mode = float(pd.Series(data).mode().iloc[0])
@@ -474,26 +627,54 @@ class DataTransformationGUI:
         q3 = np.percentile(data, 75)
         skewness = skew(data)
 
-        n, bins, patches = ax.hist(data, bins=30, density=False, alpha=0.7, color='lightblue')
+        # Create histogram
+        n_bins = min(int(np.sqrt(len(data))), 30)
+        n, bins, patches = ax.hist(data, bins=n_bins, density=False,
+                                 alpha=0.7, color='lightblue', 
+                                 label='Data Distribution')
+
+        # Add kernel density estimation
         kde_x = np.linspace(min(data), max(data), 100)
         kde = stats.gaussian_kde(data)
-        ax.plot(kde_x, kde(kde_x) * len(data) * (bins[1] - bins[0]), color='blue', linewidth=1)
+        ax.plot(kde_x, kde(kde_x) * len(data) * (bins[1] - bins[0]), 
+                color='blue', linewidth=1, label='Density Curve')
 
-        bp = ax.boxplot(data, vert=False, positions=[max(n)], widths=[max(n)/4])
+        # Add boxplot
+        bp = ax.boxplot(data, vert=False, positions=[max(n)], 
+                       widths=[max(n)/4], patch_artist=True)
 
-        ax.axvline(mean, color='red', linestyle='--', label=f'Mean = {mean:.2f}')
-        ax.axvline(median, color='blue', linestyle='-', label=f'Median = {median:.2f}')
-        ax.axvline(mode, color='purple', linestyle=':', label=f'Mode = {mode:.2f}')
-        ax.axvline(mean + std, color='orange', linestyle='--', label=f'Mean Â± Ïƒ')
+        # Color the boxplot
+        plt.setp(bp['boxes'], facecolor='lightgreen', alpha=0.6)
+        plt.setp(bp['medians'], color='darkgreen')
+        plt.setp(bp['fliers'], marker='o', markerfacecolor='red', alpha=0.6)
+
+        # Add vertical lines for key statistics
+        ax.axvline(mean, color='red', linestyle='--', 
+                   label=f'Mean = {mean:.2f}')
+        ax.axvline(median, color='blue', linestyle='-', 
+                   label=f'Median = {median:.2f}')
+        ax.axvline(mode, color='purple', linestyle=':', 
+                   label=f'Mode = {mode:.2f}')
+        ax.axvline(mean + std, color='orange', linestyle='--', 
+                   label=f'Mean ± σ ({std:.2f})')
         ax.axvline(mean - std, color='orange', linestyle='--')
-        ax.axvline(q1, color='green', linestyle=':', label='Quartiles')
+        ax.axvline(q1, color='green', linestyle=':', 
+                   label=f'Quartiles (Q1={q1:.2f}, Q3={q3:.2f})')
         ax.axvline(q3, color='green', linestyle=':')
 
-        ax.set_title(title)
+        # Formatting
+        ax.set_title(f"{title}\nSkewness: {skewness:.2f}")
         ax.set_xlabel('Values')
         ax.set_ylabel('Frequency')
-        ax.legend(loc='upper right', bbox_to_anchor=(1.0, 1.0))
+        ax.legend(loc='upper right', bbox_to_anchor=(1.0, 1.0), 
+                 fontsize='small', framealpha=0.9)
+        ax.grid(True, alpha=0.3)
 
+        # Add some padding to the x-axis
+        x_min, x_max = ax.get_xlim()
+        ax.set_xlim(x_min - 0.05 * (x_max - x_min), 
+                    x_max + 0.05 * (x_max - x_min))
+    
     def _add_statistics_text(self, original_data, transformed_data):
         stats_frame = ttk.Frame(self.plot_frame)
         stats_frame.grid(row=1, column=0, pady=10)
