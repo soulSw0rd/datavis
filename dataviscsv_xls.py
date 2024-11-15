@@ -583,14 +583,14 @@ class DataTransformationGUI:
             widget.destroy()
 
         if include_qqplot:
-            fig = plt.figure(figsize=(15, 8))
-            gs = fig.add_gridspec(2, 2, height_ratios=[2, 1])
+            fig = plt.figure(figsize=(20, 12))
+            gs = fig.add_gridspec(2, 2, height_ratios=[2, 1.3])
             ax1 = fig.add_subplot(gs[0, 0])
             ax2 = fig.add_subplot(gs[0, 1])
             ax3 = fig.add_subplot(gs[1, 0])
             ax4 = fig.add_subplot(gs[1, 1])
         else:
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 6))
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
 
         self._plot_histogram_with_stats_and_box(ax1, original_data, 'Original Distribution\n{}'.format(self.selected_column))
         self._plot_histogram_with_stats_and_box(ax2, transformed_data, '{} Distribution\n{}'.format(title, self.selected_column))
@@ -601,7 +601,7 @@ class DataTransformationGUI:
             sm.qqplot(transformed_data, line='45', ax=ax4)
             ax4.set_title('Q-Q Plot - Transformed Data')
 
-        plt.tight_layout()
+        plt.subplots_adjust(left=0.07, right=0.85, wspace=0.5)
         canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
         canvas.draw()
         canvas.get_tk_widget().grid(row=0, column=0)
@@ -665,7 +665,7 @@ class DataTransformationGUI:
         ax.set_title(f"{title}\nSkewness: {skewness:.2f}")
         ax.set_xlabel('Values')
         ax.set_ylabel('Frequency')
-        ax.legend(loc='upper right', bbox_to_anchor=(1.0, 1.0), 
+        ax.legend(loc='upper left', bbox_to_anchor=(1, 1.1), 
                  fontsize='small', framealpha=0.9)
         ax.grid(True, alpha=0.3)
 
