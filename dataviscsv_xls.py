@@ -709,7 +709,8 @@ Max: {np.max(original_data):.2f}
 Q1: {np.percentile(original_data, 25):.2f}
 Q3: {np.percentile(original_data, 75):.2f}
 Kurtosis: {stats.kurtosis(original_data):.2f}
-Skewness: {skew(original_data):.2f}"""
+Skewness: {skew(original_data):.2f}
+Population: {len(original_data):.2f}"""
 
         transformed_stats = f"""Transformed Data Statistics:
 Mean: {np.mean(transformed_data):.2f}
@@ -719,7 +720,8 @@ Max: {np.max(transformed_data):.2f}
 Q1: {np.percentile(transformed_data, 25):.2f}
 Q3: {np.percentile(transformed_data, 75):.2f}
 Kurtosis: {stats.kurtosis(transformed_data):.2f}
-Skewness: {skew(transformed_data):.2f}"""
+Skewness: {skew(transformed_data):.2f}
+Population: {len(transformed_data):.2f}"""
 
         ttk.Label(stats_frame, text=original_stats, justify=tk.LEFT).grid(row=0, column=0, padx=20)
         ttk.Label(stats_frame, text=transformed_stats, justify=tk.LEFT).grid(row=0, column=1, padx=20)
