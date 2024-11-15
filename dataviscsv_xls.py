@@ -167,142 +167,141 @@ class DataTransformationGUI:
 
         except Exception as e:
             messagebox.showerror("Error", f"Error applying Shapiro-Wilk test: {str(e)}")
+    
+    def apply_dixon_test(self, data, alpha=0.05):
+        """
+        Applique le test de Dixon pour la détection des valeurs aberrantes
 
-        # Dixon
-    def apply_dixon_test(self):
+        Parameters:
+            data (array-like): Données à tester
+            alpha (float): Niveau de signification (par défaut 0.05)
+
+        Returns:
+            tuple: (résultat du test, valeurs aberrantes trouvées, indices des valeurs aberrantes)
         """
-        Apply Dixon's Q test for outlier detection and visualize the results
-        """
+        try:
+            # Trier les données
+            sorted_data = np.sort(data)
+            n = len(sorted_data)
+
+            # Calculer les statistiques de Dixon
+            if n >= 3 and n <= 30:  # Le test de Dixon est valide pour ces tailles d'échantillon
+                # Test pour la plus petite valeur
+                r10_min = (sorted_data[1] - sorted_data[0]) / (sorted_data[-1] - sorted_data[0])
+                # Test pour la plus grande valeur
+                r10_max = (sorted_data[-1] - sorted_data[-2]) / (sorted_data[-1] - sorted_data[0])
+
+                # Valeurs critiques pour α = 0.05
+                critical_values = {
+                    3: 0.941, 4: 0.765, 5: 0.642, 6: 0.560, 7: 0.507,
+                    8: 0.468, 9: 0.437, 10: 0.412, 11: 0.392, 12: 0.376,
+                    13: 0.361, 14: 0.349, 15: 0.338, 16: 0.329, 17: 0.320,
+                    18: 0.313, 19: 0.306, 20: 0.300, 21: 0.295, 22: 0.290,
+                    23: 0.285, 24: 0.281, 25: 0.277, 26: 0.273, 27: 0.269,
+                    28: 0.266, 29: 0.263, 30: 0.260
+                }
+
+                critical_value = critical_values[n]
+
+                outliers = []
+                outlier_indices = []
+
+                # Vérifier les valeurs aberrantes
+                if r10_min > critical_value:
+                    outliers.append(sorted_data[0])
+                    outlier_indices.append(np.where(data == sorted_data[0])[0][0])
+
+                if r10_max > critical_value:
+                    outliers.append(sorted_data[-1])
+                    outlier_indices.append(np.where(data == sorted_data[-1])[0][0])
+
+                return True, outliers, outlier_indices
+            else:
+                return False, [], []
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Erreur dans le test de Dixon: {str(e)}")
+            return False, [], []
+        
+    def visualize_dixon_test(self):
+        """Visualise les résultats du test de Dixon"""
         if self.df is None or self.selected_column is None:
-            messagebox.showerror("Error", "Please load data and select a column first!")
+            messagebox.showerror("Error", "Veuillez charger des données et sélectionner une colonne d'abord!")
             return
 
         try:
-            # Get the data and remove any NaN values
-            data = self.df[self.selected_column].dropna().values.tolist()  # Convert to list for length comparison
+            # Obtenir les données
+            data = self.df[self.selected_column].dropna().values
 
-            # Check data length
-            if len(data) < 3 or len(data) > 30:
-                messagebox.showerror("Error", 
-                                   "Dixon's test is only valid for sample sizes between 3 and 30.")
+            # Appliquer le test de Dixon
+            test_successful, outliers, outlier_indices = self.apply_dixon_test(data)
+
+            if not test_successful:
+                messagebox.showwarning("Attention", 
+                    "Le test de Dixon nécessite entre 3 et 30 observations valides.")
                 return
 
-            # Sort the data
-            data = sorted(data)  # Sort as list rather than numpy array
-            n = len(data)
-
-            # Q critical values table for alpha=0.05
-            q_critical = {
-                3: 0.941, 4: 0.765, 5: 0.642, 6: 0.560, 7: 0.507, 8: 0.468,
-                9: 0.437, 10: 0.412, 11: 0.392, 12: 0.376, 13: 0.361, 14: 0.349,
-                15: 0.338, 16: 0.329, 17: 0.320, 18: 0.313, 19: 0.306, 20: 0.300,
-                21: 0.295, 22: 0.290, 23: 0.285, 24: 0.281, 25: 0.277, 26: 0.273,
-                27: 0.270, 28: 0.267, 29: 0.263, 30: 0.260
-            }
-
-            # Calculate Q values
-            q_min = (data[1] - data[0]) / (data[-1] - data[0]) if data[-1] != data[0] else 0
-            q_max = (data[-1] - data[-2]) / (data[-1] - data[0]) if data[-1] != data[0] else 0
-
-            # Identify outliers
-            outliers = []
-            if q_min > q_critical[n]:
-                outliers.append(data[0])
-            if q_max > q_critical[n]:
-                outliers.append(data[-1])
-
-            # Create visualization
+            # Créer la visualisation
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
-            # Boxplot with enhanced styling
-            bp = ax1.boxplot(data, patch_artist=True)
-            plt.setp(bp['boxes'], facecolor='lightblue', alpha=0.7)
-            plt.setp(bp['medians'], color='darkblue', linewidth=1.5)
-            plt.setp(bp['whiskers'], color='gray')
-            plt.setp(bp['caps'], color='gray')
-            plt.setp(bp['fliers'], marker='o', markerfacecolor='gray', alpha=0.7)
-
-            ax1.set_title('Boxplot of Data')
+            # Boxplot
+            ax1.boxplot(data)
             if outliers:
-                # Mark Dixon outliers in red
-                ax1.plot([1] * len(outliers), outliers, 'ro', 
-                        label='Dixon Outliers', markersize=10)
-                ax1.legend()
+                ax1.plot([1] * len(outliers), outliers, 'ro', label='Valeurs aberrantes')
+            ax1.set_title('Boxplot avec valeurs aberrantes')
+            ax1.legend()
 
-            # Add grid for better readability
-            ax1.yaxis.grid(True, linestyle='--', alpha=0.3)
-            ax1.set_ylabel('Values')
-
-            # Histogram with enhanced styling
-            n, bins, patches = ax2.hist(data, bins=min(30, n), density=False,
-                                      alpha=0.7, color='lightblue', 
-                                      edgecolor='black')
-
-            # Add KDE
-            if len(data) > 2:  # KDE needs more than 2 points
-                kde_x = np.linspace(min(data), max(data), 100)
-                kde = stats.gaussian_kde(data)
-                scaled_kde = kde(kde_x) * len(data) * (bins[1] - bins[0])
-                ax2.plot(kde_x, scaled_kde, 'b-', linewidth=2, alpha=0.7)
-
+            # Scatter plot
+            x = range(len(data))
+            ax2.scatter(x, data, c='blue', alpha=0.5)
             if outliers:
-                # Mark Dixon outliers
-                ax2.plot(outliers, [0] * len(outliers), 'ro', 
-                        markersize=10, label='Dixon Outliers')
-                ax2.legend()
-
-            ax2.set_title('Distribution with Outliers')
-            ax2.set_xlabel('Values')
-            ax2.set_ylabel('Frequency')
-            ax2.grid(True, alpha=0.3)
+                for idx in outlier_indices:
+                    ax2.scatter(idx, data[idx], c='red', s=100, 
+                              label='Valeur aberrante' if idx == outlier_indices[0] else "")
+            ax2.set_title('Distribution des données')
+            ax2.set_xlabel('Index')
+            ax2.set_ylabel(self.selected_column)
+            ax2.legend()
 
             plt.tight_layout()
 
-            # Clear previous plots
+            # Nettoyer le frame des résultats
             for widget in self.plot_frame.winfo_children():
                 widget.destroy()
 
-            # Add the new plot to the GUI
+            # Ajouter le nouveau plot à l'interface
             canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
             canvas.draw()
             canvas.get_tk_widget().grid(row=0, column=0)
 
-            # Add statistics text
-            stats_frame = ttk.Frame(self.plot_frame)
-            stats_frame.grid(row=1, column=0, pady=10)
-
-            result_text = f"""Dixon's Q Test Results:
-
-    Sample Information:
-    • Sample size: {n}
-    • Data range: [{min(data):.3f}, {max(data):.3f}]
-    • Critical Q value (α=0.05): {q_critical[n]:.3f}
-
-    Test Statistics:
-    • Q value (minimum): {q_min:.3f}
-    • Q value (maximum): {q_max:.3f}
-
-    Outliers Detected: {len(outliers)}
-    {f"• Values: {', '.join([f'{x:.3f}' for x in outliers])}" if outliers else "• No outliers detected"}
-
-    Note: Dixon's test examines the most extreme values 
-    to determine if they are significantly different from 
-    the rest of the data.
-    """
-
-            ttk.Label(stats_frame, text=result_text, justify=tk.LEFT,
-                     font=('Consolas', 10)).grid(row=0, column=0, padx=20)
-
-            # Show summary message box
+            # Afficher les statistiques
             if outliers:
-                messagebox.showinfo("Dixon Test Result", 
-                                  f"Detected {len(outliers)} outlier(s):\n" + 
-                                  "\n".join([f"• {x:.3f}" for x in outliers]))
+                stats_text = f"""
+                Résultats du test de Dixon:
+
+                Nombre de valeurs aberrantes détectées: {len(outliers)}
+                Valeurs aberrantes: {', '.join([f'{x:.2f}' for x in outliers])}
+                Positions: {', '.join(map(str, outlier_indices))}
+                """
             else:
-                messagebox.showinfo("Dixon Test Result", "No outliers detected.")
+                stats_text = "Aucune valeur aberrante détectée selon le test de Dixon."
+
+            stats_label = ttk.Label(self.plot_frame, text=stats_text, justify=tk.LEFT)
+            stats_label.grid(row=1, column=0, pady=10)
+
+            # Message de résultats
+            if outliers:
+                messagebox.showinfo("Résultats du test de Dixon",
+                                  f"Nombre de valeurs aberrantes détectées: {len(outliers)}\n" +
+                                  f"Valeurs: {', '.join([f'{x:.2f}' for x in outliers])}")
+            else:
+                messagebox.showinfo("Résultats du test de Dixon",
+                                  "Aucune valeur aberrante détectée.")
 
         except Exception as e:
-            messagebox.showerror("Error", f"Error applying Dixon test: {str(e)}")
+            messagebox.showerror("Error", f"Erreur lors de la visualisation: {str(e)}")
+
+
     def create_widgets(self):
         self.scroll_frame = ScrollableFrame(self.root)
         self.scroll_frame.pack(fill="both", expand=True)
@@ -367,8 +366,8 @@ class DataTransformationGUI:
                   command=lambda: self.apply_transformation("log10")).grid(row=0, column=2, padx=5)
         ttk.Button(transform_frame, text="Natural Log Transform",
                   command=lambda: self.apply_transformation("log_n")).grid(row=0, column=3, padx=5)
-        ttk.Button(transform_frame, text="Dixon Test",
-                    command=self.apply_dixon_test).grid(row=2, column=0, padx=5)
+        ttk.Button(transform_frame, text="Test de Dixon",
+           command=self.visualize_dixon_test).grid(row=2, column=0, padx=5)
         ttk.Button(transform_frame, text="Shapiro-Wilk Test",
                   command=self.apply_shapiro_test).grid(row=2, column=1, padx=5)
 
