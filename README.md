@@ -10,8 +10,7 @@ Interface Utilisateur : Applications GUI basées sur Tkinter pour une interactio
 Flexibilité : Compatible avec divers formats de données et types de colonnes.
 Extensibilité : Code modulaire permettant des ajouts et modifications faciles.
 ## Prérequis
-Python 3.x
-Bibliothèques : numpy, pandas, matplotlib, scipy, tkinter
+Check the readme file for the code you want to run. 
 ## Installation
 Clonez ce dépôt et installez les dépendances requises :
 ```Bash
