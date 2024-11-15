@@ -20,7 +20,9 @@ cd datavis
 ```
 ## Utilisation
 Chaque script est autonome et peut être exécuté directement. Consultez les commentaires dans le code pour des instructions spécifiques sur l'utilisation de chaque script.
-Contribution
+
+## Contribution
+
 Les contributions sont les bienvenues ! N'hésitez pas à soumettre des issues, forker le dépôt et créer des pull requests.
 ## Licence
 Ce projet est sous licence MIT. Consultez le fichier LICENSE pour plus de détails.
