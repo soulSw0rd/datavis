@@ -14,7 +14,7 @@ Check the readme file for the code you want to run.
 ## Installation
 Clonez ce dépôt et installez les dépendances requises :
 ```Bash
-git clone https://github.com/votre-utilisateur/data-transformation-scripts.git
+git clone https://github.com/SoulSw0rd/datavis.git
 cd datavis
 ```
 ## Utilisation
