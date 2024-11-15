@@ -358,6 +358,10 @@ class DataTransformationGUI:
         transform_frame = ttk.LabelFrame(main_frame, text="Transformations", padding="5")
         transform_frame.grid(row=5, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
 
+        ttk.Label(transform_frame, text="Base:").grid(row=1, column=0, padx=5, sticky=tk.W)
+        self.log_base_var = tk.StringVar(value="2")  # Valeur par défaut
+        ttk.Entry(transform_frame, textvariable=self.log_base_var, width=5).grid(row=1, column=1, padx=5)
+
         ttk.Button(transform_frame, text="Normalize",
                   command=lambda: self.apply_transformation("normalize")).grid(row=0, column=0, padx=5)
         ttk.Button(transform_frame, text="Standardize",
@@ -366,6 +370,8 @@ class DataTransformationGUI:
                   command=lambda: self.apply_transformation("log10")).grid(row=0, column=2, padx=5)
         ttk.Button(transform_frame, text="Natural Log Transform",
                   command=lambda: self.apply_transformation("log_n")).grid(row=0, column=3, padx=5)
+        ttk.Button(transform_frame, text="Log_x",
+                command=lambda: self.apply_transformation("log_x")).grid(row=0, column=4, padx=5)
         ttk.Button(transform_frame, text="Test de Dixon",
            command=self.visualize_dixon_test).grid(row=2, column=0, padx=5)
         ttk.Button(transform_frame, text="Shapiro-Wilk Test",
@@ -512,6 +518,17 @@ class DataTransformationGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Error in natural log transformation: {str(e)}")
             return None
+    
+    def log_X_transform(self, X, base):
+        try:
+            X = X.astype(float)
+            if np.any(X <= 0):
+                messagebox.showerror("Error", "Log_X transformation requires positive values!")
+                return None
+            return np.log(X) / np.log(base)
+        except Exception as e:
+            messagebox.showerror("Error", f"Error in log_X transformation: {str(e)}")
+            return None
         
     def apply_transformation(self, transform_type):
         """
@@ -552,6 +569,12 @@ class DataTransformationGUI:
             elif transform_type == "log_n":
                 transformed_data = self.log_n_transform(original_data)
                 title = "Natural Log-transformed"
+                include_qqplot = False
+            
+            elif transform_type == "log_x":
+                base = float(self.log_base_var.get())
+                transformed_data = self.log_X_transform(original_data, base)
+                title = f"Log_{base}-transformed"
                 include_qqplot = False
                 
             else:
