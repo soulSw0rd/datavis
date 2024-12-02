@@ -167,7 +167,121 @@ class DataTransformationGUI:
 
         except Exception as e:
             messagebox.showerror("Error", f"Error applying Shapiro-Wilk test: {str(e)}")
-    
+
+    def normalize_advanced(self, data, method='zscore'):
+        """
+        Normalize data using various methods.
+
+        Parameters:
+            data (pandas.Series): Data to normalize
+            method (str): Normalization method ('zscore', 'minmax', 'robust', 'decimal')
+
+        Returns:
+            pandas.Series: Normalized data
+        """
+        try:
+            if method == 'zscore':
+                return (data - data.mean()) / data.std()
+            elif method == 'minmax':
+                return (data - data.min()) / (data.max() - data.min())
+            elif method == 'robust':
+                median = data.median()
+                iqr = data.quantile(0.75) - data.quantile(0.25)
+                return (data - median) / iqr
+            elif method == 'decimal':
+                return data / 10**len(str(int(data.max())))
+            else:
+                raise ValueError(f"Unknown normalization method: {method}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Normalization error: {str(e)}")
+            return None
+
+    def clean_data(self, data):
+        """
+        Clean data by handling missing values, outliers, and inconsistencies.
+
+        Parameters:
+            data (pandas.DataFrame): Data to clean
+
+        Returns:
+            pandas.DataFrame: Cleaned data
+        """
+        try:
+            # Create a copy
+            cleaned = data.copy()
+
+            # Handle missing values
+            numeric_cols = cleaned.select_dtypes(include=[np.number]).columns
+            for col in numeric_cols:
+                # Replace outliers with median
+                Q1 = cleaned[col].quantile(0.25)
+                Q3 = cleaned[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower = Q1 - 1.5 * IQR
+                upper = Q3 + 1.5 * IQR
+                cleaned.loc[cleaned[col] < lower, col] = cleaned[col].median()
+                cleaned.loc[cleaned[col] > upper, col] = cleaned[col].median()
+
+                # Fill missing values
+                cleaned.loc[:, col] = cleaned[col].fillna(cleaned[col].median())
+
+            # Handle categorical columns
+            categorical_cols = cleaned.select_dtypes(include=['object']).columns
+            for col in categorical_cols:
+                # Fill missing with mode
+                cleaned[col].fillna(cleaned[col].mode()[0], inplace=True)
+
+                # Standardize case
+                cleaned.loc[:, col] = cleaned[col].str.upper()
+
+            return cleaned
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Data cleaning error: {str(e)}")
+            return None
+    def show_normalize_dialog(self):
+        if not self.selected_column:
+            messagebox.showerror("Error", "Please select a column first")
+            return
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Advanced Normalize")
+
+        ttk.Label(dialog, text="Select normalization method:").pack(pady=5)
+        method = tk.StringVar(value='zscore')
+
+        for val in ['zscore', 'minmax', 'robust', 'decimal']:
+            ttk.Radiobutton(dialog, text=val, value=val, 
+                           variable=method).pack()
+
+        ttk.Button(dialog, text="Apply",
+                   command=lambda: self.apply_advanced_normalize(method.get(), 
+                                                              dialog)).pack(pady=10)
+
+    def apply_advanced_normalize(self, method, dialog):
+        try:
+            normalized = self.normalize_advanced(self.df[self.selected_column], 
+                                              method)
+            if normalized is not None:
+                self.df[f"{self.selected_column}_{method}"] = normalized
+                self.update_column_list()
+                self.update_treeview()
+                messagebox.showinfo("Success", 
+                                  f"Applied {method} normalization")
+            dialog.destroy()
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def apply_clean_data(self):
+        try:
+            self.df = self.clean_data(self.df)
+            if self.df is not None:
+                self.update_treeview()
+                self.update_column_list()
+                messagebox.showinfo("Success", "Data cleaned successfully")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
     def apply_dixon_test(self, data, alpha=0.05):
         """
         Applique le test de Dixon pour la détection des valeurs aberrantes
@@ -363,19 +477,23 @@ class DataTransformationGUI:
         ttk.Entry(transform_frame, textvariable=self.log_base_var, width=5).grid(row=1, column=1, padx=5)
 
         ttk.Button(transform_frame, text="Normalize",
-                  command=lambda: self.apply_transformation("normalize")).grid(row=0, column=0, padx=5)
+            command=lambda: self.apply_transformation("normalize")).grid(row=0, column=0, padx=5)
         ttk.Button(transform_frame, text="Standardize",
-                  command=lambda: self.apply_transformation("standardize")).grid(row=0, column=1, padx=5)
+            command=lambda: self.apply_transformation("standardize")).grid(row=0, column=1, padx=5)
         ttk.Button(transform_frame, text="Log10 Transform",
-                  command=lambda: self.apply_transformation("log10")).grid(row=0, column=2, padx=5)
+            command=lambda: self.apply_transformation("log10")).grid(row=0, column=2, padx=5)
         ttk.Button(transform_frame, text="Natural Log Transform",
-                  command=lambda: self.apply_transformation("log_n")).grid(row=0, column=3, padx=5)
+            command=lambda: self.apply_transformation("log_n")).grid(row=0, column=3, padx=5)
         ttk.Button(transform_frame, text="Log_x",
-                command=lambda: self.apply_transformation("log_x")).grid(row=0, column=4, padx=5)
+            command=lambda: self.apply_transformation("log_x")).grid(row=0, column=4, padx=5)
         ttk.Button(transform_frame, text="Test de Dixon",
-           command=self.visualize_dixon_test).grid(row=2, column=0, padx=5)
+            command=self.visualize_dixon_test).grid(row=2, column=0, padx=5)
         ttk.Button(transform_frame, text="Shapiro-Wilk Test",
-                  command=self.apply_shapiro_test).grid(row=2, column=1, padx=5)
+            command=self.apply_shapiro_test).grid(row=2, column=1, padx=5)
+        ttk.Button(transform_frame, text="Advanced Normalize",
+            command=self.show_normalize_dialog).grid(row=2, column=2, padx=5)
+        ttk.Button(transform_frame, text="Clean Data",
+            command=self.apply_clean_data).grid(row=2, column=3, padx=5)
 
         # Results frame
         self.results_frame = ttk.LabelFrame(main_frame, text="Results", padding="5")
