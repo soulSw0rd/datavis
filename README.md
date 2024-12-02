@@ -24,4 +24,4 @@ Chaque script est autonome et peut être exécuté directement. Consultez les co
 
 Les contributions sont les bienvenues ! N'hésitez pas à soumettre des issues, forker le dépôt et créer des pull requests.
 ## Licence
-Ce projet est sous licence MIT. Consultez le fichier LICENSE pour plus de détails.
+Ce projet est sous licence GPL. Consultez le fichier LICENSE pour plus de détails.
