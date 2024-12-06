@@ -50,134 +50,6 @@ class ScrollableFrame(ttk.Frame):
         self.canvas.bind_all("<MouseWheel>", _on_mousewheel)
         self.canvas.bind_all("<Shift-MouseWheel>", _on_mousewheel_horizontal)
 
-# --- STATISTICAL TEST FUNCTIONS ---
-def apply_dixon_test(data, alpha=0.05):
-    """
-    Applique le test de Dixon pour la détection des valeurs aberrantes.
-    
-    Parameters:
-        data (array-like): Données à tester
-        alpha (float): Niveau de signification (par défaut 0.05)
-    
-    Returns:
-        tuple: (test_successful, outliers, outlier_indices)
-    """
-    try:
-        # Trier les données
-        sorted_data = np.sort(data)
-        n = len(sorted_data)
-
-        if n >= 3 and n <= 30:  
-            # Test pour la plus petite et la plus grande valeur
-            r10_min = (sorted_data[1] - sorted_data[0]) / (sorted_data[-1] - sorted_data[0])
-            r10_max = (sorted_data[-1] - sorted_data[-2]) / (sorted_data[-1] - sorted_data[0])
-
-            # Valeurs critiques pour α = 0.05
-            critical_values = {
-                3: 0.941, 4: 0.765, 5: 0.642, 6: 0.560, 7: 0.507,
-                8: 0.468, 9: 0.437, 10: 0.412, 11: 0.392, 12: 0.376,
-                13: 0.361, 14: 0.349, 15: 0.338, 16: 0.329, 17: 0.320,
-                18: 0.313, 19: 0.306, 20: 0.300, 21: 0.295, 22: 0.290,
-                23: 0.285, 24: 0.281, 25: 0.277, 26: 0.273, 27: 0.269,
-                28: 0.266, 29: 0.263, 30: 0.260
-            }
-
-            critical_value = critical_values[n]
-            outliers = []
-            outlier_indices = []
-
-            # Vérifier les valeurs aberrantes
-            if r10_min > critical_value:
-                outliers.append(sorted_data[0])
-                outlier_indices.append(np.where(data == sorted_data[0])[0][0])
-
-            if r10_max > critical_value:
-                outliers.append(sorted_data[-1])
-                outlier_indices.append(np.where(data == sorted_data[-1])[0][0])
-
-            return True, outliers, outlier_indices
-        else:
-            return False, [], []
-
-    except Exception as e:
-        messagebox.showerror("Error", f"Erreur dans le test de Dixon: {str(e)}")
-        return False, [], []
-
-def apply_grubbs_test(data, alpha=0.05):
-    """
-    Applique le test de Grubbs pour détecter les valeurs aberrantes.
-    
-    Parameters:
-        data (array-like): Données à tester
-        alpha (float): Niveau de signification
-    
-    Returns:
-        tuple: (is_outlier, outlier, outlier_index)
-    """
-    try:
-        # Calculer la moyenne et l'écart type
-        mean = np.mean(data)
-        std = np.std(data, ddof=1)
-        n = len(data)
-        
-        # Calculer les statistiques G pour min et max
-        G_min = (mean - np.min(data)) / std
-        G_max = (np.max(data) - mean) / std
-        
-        # Valeurs critiques du test de Grubbs
-        t_value = t.ppf(1 - alpha / (2 * n), n - 2)
-        G_crit = ((n - 1) * np.sqrt(np.square(t_value))) / (np.sqrt(n) * np.sqrt(n - 2 + np.square(t_value)))
-        
-        # Trouver la valeur la plus extrême
-        if G_max > G_min:
-            G = G_max
-            outlier = np.max(data)
-            idx = np.argmax(data)
-        else:
-            G = G_min
-            outlier = np.min(data)
-            idx = np.argmin(data)
-        
-        # Tester si c'est une valeur aberrante
-        is_outlier = G > G_crit
-        
-        return is_outlier, outlier, idx
-    
-    except Exception as e:
-        messagebox.showerror("Error", f"Erreur dans le test de Grubbs: {str(e)}")
-        return False, None, None
-
-
-def normalize_data(data, method='zscore'):
-    """
-    Normalise les données selon différentes méthodes.
-
-    Parameters:
-        data (array-like): Données à normaliser
-        method (str): Méthode de normalisation ('zscore', 'minmax', 'robust', 'decimal')
-
-    Returns:
-        array-like: Données normalisées
-    """
-    try:
-        data = np.array(data, dtype=float)
-        
-        if method == 'zscore':
-            return (data - np.mean(data)) / np.std(data)
-        elif method == 'minmax':
-            return (data - np.min(data)) / (np.max(data) - np.min(data))
-        elif method == 'robust':
-            median = np.median(data)
-            iqr = np.percentile(data, 75) - np.percentile(data, 25)
-            return (data - median) / iqr
-        elif method == 'decimal':
-            return data / 10**len(str(int(np.max(data))))
-        else:
-            raise ValueError(f"Méthode de normalisation inconnue: {method}")
-            
-    except Exception as e:
-        messagebox.showerror("Error", f"Erreur de normalisation: {str(e)}")
-        return None
 # --- MAIN GUI CLASS ---
 class DataTransformationGUI:
     def __init__(self, root):
@@ -426,6 +298,64 @@ class DataTransformationGUI:
         ttk.Button(dialog, text="Apply",
                    command=lambda: self.apply_advanced_normalize(method.get(), 
                                                               dialog)).pack(pady=10)
+        
+    def apply_advanced_normalize(self, method, dialog):
+        """Applique la normalisation avancée selon la méthode choisie"""
+        if self.df is None or self.selected_column is None:
+            messagebox.showerror("Error", "Please load data and select a column first!")
+            return
+
+        try:
+            # Obtenir les données originales
+            original_data = self.df[self.selected_column].dropna().values
+
+            if len(original_data) == 0:
+                messagebox.showerror("Error", "No valid data to transform!")
+                return
+
+            # Application de la méthode de normalisation appropriée
+            if method == 'zscore':
+                transformed_data = (original_data - np.mean(original_data)) / np.std(original_data)
+            elif method == 'minmax':
+                min_val = np.min(original_data)
+                max_val = np.max(original_data)
+                transformed_data = (original_data - min_val) / (max_val - min_val)
+            elif method == 'robust':
+                median = np.median(original_data)
+                q1 = np.percentile(original_data, 25)
+                q3 = np.percentile(original_data, 75)
+                iqr = q3 - q1
+                transformed_data = (original_data - median) / iqr
+            elif method == 'decimal':
+                max_abs = np.max(np.abs(original_data))
+                n_digits = len(str(int(max_abs)))
+                transformed_data = original_data / (10 ** n_digits)
+            else:
+                raise ValueError(f"Unknown normalization method: {method}")
+
+            if transformed_data is not None:
+                # Créer nouvelle colonne avec les données transformées
+                new_col_name = f"{self.selected_column}_{method}"
+                self.df[new_col_name] = transformed_data
+
+                # Mettre à jour l'interface
+                self.update_column_list()
+
+                # Visualiser les résultats
+                self.plot_results(original_data, transformed_data, 
+                                f"{method.capitalize()} Normalization", 
+                                include_qqplot=True)
+
+                messagebox.showinfo("Success", 
+                                  f"Advanced normalization ({method}) applied successfully!\n"
+                                  f"New column '{new_col_name}' has been added to the dataset.")
+
+            # Fermer la boîte de dialogue
+            if dialog:
+                dialog.destroy()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error in advanced normalization: {str(e)}")
 
     def apply_transformation(self, transform_type):
         """
@@ -490,6 +420,125 @@ class DataTransformationGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Error applying transformation: {str(e)}")
 
+    # --- STATISTICAL TEST FUNCTIONS ---
+    def apply_dixon_test(self, data, alpha=0.05):
+        """
+        Applique le test de Dixon pour la détection des valeurs aberrantes.
+
+        Parameters:
+            data (array-like): Données à tester
+            alpha (float): Niveau de signification (par défaut 0.05)
+
+        Returns:
+            tuple: (test_successful, outliers, outlier_indices)
+        """
+        try:
+            sorted_data = np.sort(data)
+            n = len(sorted_data)
+
+            if n >= 3 and n <= 30:  
+                r10_min = (sorted_data[1] - sorted_data[0]) / (sorted_data[-1] - sorted_data[0])
+                r10_max = (sorted_data[-1] - sorted_data[-2]) / (sorted_data[-1] - sorted_data[0])
+
+                critical_values = {
+                    3: 0.941, 4: 0.765, 5: 0.642, 6: 0.560, 7: 0.507,
+                    8: 0.468, 9: 0.437, 10: 0.412, 11: 0.392, 12: 0.376,
+                    13: 0.361, 14: 0.349, 15: 0.338, 16: 0.329, 17: 0.320,
+                    18: 0.313, 19: 0.306, 20: 0.300, 21: 0.295, 22: 0.290,
+                    23: 0.285, 24: 0.281, 25: 0.277, 26: 0.273, 27: 0.269,
+                    28: 0.266, 29: 0.263, 30: 0.260
+                }
+
+                critical_value = critical_values[n]
+                outliers = []
+                outlier_indices = []
+
+                if r10_min > critical_value:
+                    outliers.append(sorted_data[0])
+                    outlier_indices.append(np.where(data == sorted_data[0])[0][0])
+
+                if r10_max > critical_value:
+                    outliers.append(sorted_data[-1])
+                    outlier_indices.append(np.where(data == sorted_data[-1])[0][0])
+
+                return True, outliers, outlier_indices
+            else:
+                return False, [], []
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Erreur dans le test de Dixon: {str(e)}")
+            return False, [], []
+
+    def apply_grubbs_test(self, data, alpha=0.05):
+        """
+        Applique le test de Grubbs pour détecter les valeurs aberrantes.
+
+        Parameters:
+            data (array-like): Données à tester
+            alpha (float): Niveau de signification
+
+        Returns:
+            tuple: (is_outlier, outlier, outlier_index)
+        """
+        try:
+            mean = np.mean(data)
+            std = np.std(data, ddof=1)
+            n = len(data)
+
+            G_min = (mean - np.min(data)) / std
+            G_max = (np.max(data) - mean) / std
+
+            t_value = t.ppf(1 - alpha / (2 * n), n - 2)
+            G_crit = ((n - 1) * np.sqrt(np.square(t_value))) / (np.sqrt(n) * np.sqrt(n - 2 + np.square(t_value)))
+
+            if G_max > G_min:
+                G = G_max
+                outlier = np.max(data)
+                idx = np.argmax(data)
+            else:
+                G = G_min
+                outlier = np.min(data)
+                idx = np.argmin(data)
+
+            is_outlier = G > G_crit
+
+            return is_outlier, outlier, idx
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Erreur dans le test de Grubbs: {str(e)}")
+            return False, None, None
+
+    def normalize_data(self, data, method='zscore'):
+        """
+        Normalise les données selon différentes méthodes.
+
+        Parameters:
+            data (array-like): Données à normaliser
+            method (str): Méthode de normalisation ('zscore', 'minmax', 'robust', 'decimal')
+
+        Returns:
+            array-like: Données normalisées
+        """
+        try:
+            data = np.array(data, dtype=float)
+
+            if method == 'zscore':
+                return (data - np.mean(data)) / np.std(data)
+            elif method == 'minmax':
+                return (data - np.min(data)) / (np.max(data) - np.min(data))
+            elif method == 'robust':
+                median = np.median(data)
+                iqr = np.percentile(data, 75) - np.percentile(data, 25)
+                return (data - median) / iqr
+            elif method == 'decimal':
+                return data / 10**len(str(int(np.max(data))))
+            else:
+                raise ValueError(f"Méthode de normalisation inconnue: {method}")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Erreur de normalisation: {str(e)}")
+            return None
+        
     def standardize_data(self, X):
         """Standardise les données"""
         try:
@@ -673,7 +722,7 @@ class DataTransformationGUI:
             
             # Application itérative du test
             while True:
-                is_outlier, outlier, idx = apply_grubbs_test(data)
+                is_outlier, outlier, idx = self.apply_grubbs_test(data)
                 if not is_outlier:
                     break
                     
@@ -887,7 +936,7 @@ class DataTransformationGUI:
             data = self.df[self.selected_column].dropna().values
 
             # Appliquer le test de Dixon
-            test_successful, outliers, outlier_indices = apply_dixon_test(data)
+            test_successful, outliers, outlier_indices = self.apply_dixon_test(data)
 
             if not test_successful:
                 messagebox.showwarning("Attention", 
