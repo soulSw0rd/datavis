@@ -133,42 +133,80 @@ class DataTransformationGUI:
         self.plot_frame.grid(row=0, column=0, pady=5)
 
     def create_transformation_frame(self, parent):
-        """Create the frame containing transformation buttons"""
         transform_frame = ttk.LabelFrame(parent, text="Transformations", padding="5")
 
-        # Base input for logarithmic transformations
-        ttk.Label(transform_frame, text="Base:").grid(row=1, column=0, padx=5, sticky=tk.W)
-        self.log_base_var = tk.StringVar(value="2")
-        ttk.Entry(transform_frame, textvariable=self.log_base_var, width=5).grid(row=1, column=1, padx=5)
+        # Création des tooltips
+        tooltips = {
+            "normalize": "Normalise les données entre 0 et 1",
+            "standardize": "Standardise les données (moyenne=0, écart-type=1)",
+            "log10": "Transformation logarithmique base 10",
+            "logn": "Transformation logarithmique naturelle (base e)",
+            "logx": "Transformation logarithmique avec base personnalisée",
+            "dixon": "Test de Dixon pour la détection des valeurs aberrantes",
+            "grubbs": "Test de Grubbs pour la détection des valeurs aberrantes",
+            "shapiro": "Test de Shapiro-Wilk pour la normalité",
+            "advanced": "Options avancées de normalisation",
+            "clean": "Nettoie les données (valeurs manquantes et aberrantes)",
+            "auto": "Détecte et applique la meilleure transformation"
+        }
 
-        # First row of transformation buttons
-        ttk.Button(transform_frame, text="Normalize",
-            command=lambda: self.apply_transformation("normalize")).grid(row=0, column=0, padx=5)
-        ttk.Button(transform_frame, text="Standardize",
-            command=lambda: self.apply_transformation("standardize")).grid(row=0, column=1, padx=5)
-        ttk.Button(transform_frame, text="Log10 Transform",
-            command=lambda: self.apply_transformation("log10")).grid(row=0, column=2, padx=5)
-        ttk.Button(transform_frame, text="Natural Log Transform",
-            command=lambda: self.apply_transformation("log_n")).grid(row=0, column=3, padx=5)
-        ttk.Button(transform_frame, text="Log_x",
-            command=lambda: self.apply_transformation("log_x")).grid(row=0, column=4, padx=5)
+        def create_tooltip(widget, text):
+            tooltip = tk.Label(widget.master, text=text, relief="solid", padx=2)
+            tooltip.place_forget()
 
-        # Second row of statistical test buttons
-        ttk.Button(transform_frame, text="Test de Dixon",
-            command=self.visualize_dixon_test).grid(row=2, column=0, padx=5)
-        ttk.Button(transform_frame, text="Test de Grubbs",
-            command=self.remove_outliers_grubbs).grid(row=2, column=1, padx=5)
-        ttk.Button(transform_frame, text="Shapiro-Wilk Test",
-            command=self.apply_shapiro_test).grid(row=2, column=2, padx=5)
-        ttk.Button(transform_frame, text="Advanced Normalize",
-            command=self.show_normalize_dialog).grid(row=2, column=3, padx=5)
-        ttk.Button(transform_frame, text="Clean Data",
-            command=self.apply_clean_data).grid(row=2, column=4, padx=5)
-        ttk.Button(transform_frame, text="Auto Transform",
-           command=self.apply_auto_transformation).grid(row=2, column=5, padx=5)
+            def on_enter(e):
+                tooltip.lift()
+                x = widget.winfo_rootx() - tooltip.winfo_width()//2 + widget.winfo_width()//2
+                y = widget.winfo_rooty() + widget.winfo_height() + 5
+                tooltip.place(x=x, y=y)
+
+            def on_leave(e):
+                tooltip.place_forget()
+
+            widget.bind("<Enter>", on_enter)
+            widget.bind("<Leave>", on_leave)
+            return tooltip
+
+        # Buttons avec tooltips
+        buttons = {
+            "normalize": ttk.Button(transform_frame, text="Normalize",
+                                  command=lambda: self.apply_transformation("normalize")),
+            "standardize": ttk.Button(transform_frame, text="Standardize",
+                                    command=lambda: self.apply_transformation("standardize")),
+            "log10": ttk.Button(transform_frame, text="Log10 Transform",
+                               command=lambda: self.apply_transformation("log10")),
+            "logn": ttk.Button(transform_frame, text="Natural Log Transform",
+                              command=lambda: self.apply_transformation("log_n")),
+            "logx": ttk.Button(transform_frame, text="Log_x",
+                              command=lambda: self.apply_transformation("log_x")),
+            "dixon": ttk.Button(transform_frame, text="Test de Dixon",
+                              command=self.visualize_dixon_test),
+            "grubbs": ttk.Button(transform_frame, text="Test de Grubbs",
+                                command=self.remove_outliers_grubbs),
+            "shapiro": ttk.Button(transform_frame, text="Shapiro-Wilk Test",
+                                 command=self.apply_shapiro_test),
+            "advanced": ttk.Button(transform_frame, text="Advanced Normalize",
+                                  command=self.show_normalize_dialog),
+            "clean": ttk.Button(transform_frame, text="Clean Data",
+                               command=self.apply_clean_data),
+            "auto": ttk.Button(transform_frame, text="Auto Transform",
+                              command=self.apply_auto_transformation)
+        }
+
+        # Placement des boutons et création des tooltips
+        row1_buttons = ["normalize", "standardize", "log10", "logn", "logx"]
+        row2_buttons = ["dixon", "grubbs", "shapiro", "advanced", "clean", "auto"]
+
+        for i, key in enumerate(row1_buttons):
+            buttons[key].grid(row=0, column=i, padx=5)
+            create_tooltip(buttons[key], tooltips[key])
+
+        for i, key in enumerate(row2_buttons):
+            buttons[key].grid(row=2, column=i, padx=5)
+            create_tooltip(buttons[key], tooltips[key])
 
         return transform_frame
-    
+
     def load_file(self, file_type):
         """
         Charge un fichier CSV ou Excel.
@@ -850,51 +888,80 @@ class DataTransformationGUI:
             messagebox.showerror("Error", f"Error in Grubbs test: {str(e)}")
 
     def plot_results(self, original_data, transformed_data, title, include_qqplot):
-        """
-        Visualise les résultats d'une transformation avec des graphiques détaillés.
-        
-        Parameters:
-            original_data (array-like): Données originales
-            transformed_data (array-like): Données transformées
-            title (str): Titre de la transformation
-            include_qqplot (bool): Inclure ou non les Q-Q plots
-        """
-        # Nettoyer le frame des résultats
-        for widget in self.plot_frame.winfo_children():
-            widget.destroy()
+       """
+       Visualise les résultats d'une transformation avec des graphiques détaillés.
+    
+       Parameters:
+           original_data (array-like): Données originales 
+           transformed_data (array-like): Données transformées
+           title (str): Titre de la transformation
+           include_qqplot (bool): Inclure ou non les Q-Q plots
+       """
+       # Nettoyer le frame des résultats
+       for widget in self.plot_frame.winfo_children():
+           widget.destroy()
 
-        if include_qqplot:
-            fig = plt.figure(figsize=(20, 12))
-            gs = fig.add_gridspec(2, 2, height_ratios=[2, 1.3])
-            ax1 = fig.add_subplot(gs[0, 0])
-            ax2 = fig.add_subplot(gs[0, 1])
-            ax3 = fig.add_subplot(gs[1, 0])
-            ax4 = fig.add_subplot(gs[1, 1])
-        else:
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+       if include_qqplot:
+           fig = plt.figure(figsize=(20, 12))
+           gs = fig.add_gridspec(2, 2, height_ratios=[2, 1.3])
+           ax1 = fig.add_subplot(gs[0, 0])
+           ax2 = fig.add_subplot(gs[0, 1])
+           ax3 = fig.add_subplot(gs[1, 0])
+           ax4 = fig.add_subplot(gs[1, 1])
+       else:
+           fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
 
-        # Créer les histogrammes
-        self._plot_histogram_with_stats_and_box(ax1, original_data, 
-                                              'Original Distribution\n{}'.format(self.selected_column))
-        self._plot_histogram_with_stats_and_box(ax2, transformed_data, 
-                                              '{} Distribution\n{}'.format(title, self.selected_column))
+       # Créer les histogrammes
+       self._plot_histogram_with_stats_and_box(ax1, original_data, 
+                                             'Original Distribution\n{}'.format(self.selected_column))
+       self._plot_histogram_with_stats_and_box(ax2, transformed_data, 
+                                             '{} Distribution\n{}'.format(title, self.selected_column))
 
-        # Ajouter les Q-Q plots si nécessaire
-        if include_qqplot:
-            sm.qqplot(original_data, line='45', ax=ax3)
-            ax3.set_title('Q-Q Plot - Original Data')
-            sm.qqplot(transformed_data, line='45', ax=ax4)
-            ax4.set_title('Q-Q Plot - Transformed Data')
+       # Ajouter les Q-Q plots si nécessaire
+       if include_qqplot:
+           sm.qqplot(original_data, line='45', ax=ax3)
+           ax3.set_title('Q-Q Plot - Original Data')
+           sm.qqplot(transformed_data, line='45', ax=ax4)
+           ax4.set_title('Q-Q Plot - Transformed Data')
 
-        plt.subplots_adjust(left=0.07, right=0.85, wspace=0.5)
+       plt.subplots_adjust(left=0.07, right=0.85, wspace=0.5)
 
-        # Ajouter le plot à l'interface
-        canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
-        canvas.draw()
-        canvas.get_tk_widget().grid(row=0, column=0)
+       # Ajouter le plot à l'interface
+       canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+       canvas.draw()
+       canvas.get_tk_widget().grid(row=0, column=0)
 
-        # Ajouter les statistiques
-        self._add_statistics_text(original_data, transformed_data)
+       # Stocker la référence et ajouter le bouton d'export
+       self.current_figure = fig
+       export_button = ttk.Button(self.plot_frame, text="Export Graph",
+                                 command=self.export_current_plot)
+       export_button.grid(row=2, column=0, pady=5)
+
+       # Ajouter les statistiques
+       self._add_statistics_text(original_data, transformed_data)
+
+    def export_current_plot(self):
+        if not hasattr(self, 'current_figure'):
+            messagebox.showerror("Error", "No graph to export")
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[
+                ("PNG files", "*.png"),
+                ("PDF files", "*.pdf"),
+                ("SVG files", "*.svg"),
+                ("JPEG files", "*.jpg")
+            ],
+            title="Export Graph"
+        )
+
+        if file_path:
+            try:
+                self.current_figure.savefig(file_path, bbox_inches='tight', dpi=300)
+                messagebox.showinfo("Success", "Graph exported successfully")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error exporting graph: {str(e)}")
 
     def visualize_outliers_removal(self, data, outliers, outlier_indices):
         """
