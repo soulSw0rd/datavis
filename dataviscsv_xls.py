@@ -1053,7 +1053,7 @@ Un outil pour l'analyse et la transformation de données avec:
 - Transformations de données
 - Détection des valeurs aberrantes
 - Visualisations interactives
-
+Sous licence GPL 3.0 
 © 2024"""
     
     messagebox.showinfo("À propos", about_text)
