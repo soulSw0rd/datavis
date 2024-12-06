@@ -1225,7 +1225,7 @@ Un outil pour l'analyse et la transformation de données avec:
 - Transformations de données
 - Détection des valeurs aberrantes
 - Visualisations interactives
-Sous licence GPL 3.0 
+This work is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
 © 2024"""
     
     messagebox.showinfo("À propos", about_text)
