@@ -357,7 +357,7 @@ class DataTransformationGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Error in advanced normalization: {str(e)}")
 
-    def apply_transformation(self, transform_type):
+    def apply_transformation(self, transform_type): 
         """
         Applique une transformation aux données et affiche les résultats
         
