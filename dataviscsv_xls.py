@@ -164,6 +164,8 @@ class DataTransformationGUI:
             command=self.show_normalize_dialog).grid(row=2, column=3, padx=5)
         ttk.Button(transform_frame, text="Clean Data",
             command=self.apply_clean_data).grid(row=2, column=4, padx=5)
+        ttk.Button(transform_frame, text="Auto Transform",
+           command=self.apply_auto_transformation).grid(row=2, column=5, padx=5)
 
         return transform_frame
     
@@ -299,6 +301,46 @@ class DataTransformationGUI:
                    command=lambda: self.apply_advanced_normalize(method.get(), 
                                                               dialog)).pack(pady=10)
         
+
+    def apply_auto_transformation(self):
+        """Applique automatiquement la meilleure transformation"""
+        if self.df is None or self.selected_column is None:
+            messagebox.showerror("Error", "Please load data and select a column first!")
+            return
+
+        try:
+            # Obtenir les données originales
+            original_data = self.df[self.selected_column].dropna().values
+
+            if len(original_data) == 0:
+                messagebox.showerror("Error", "No valid data to transform!")
+                return
+
+            # Détecter la meilleure transformation
+            best_method, score, transformed_data = self.detect_best_transformation(original_data)
+
+            # Appliquer la transformation
+            if best_method != 'original':
+                new_col_name = f"{self.selected_column}_{best_method}_auto"
+                self.df[new_col_name] = transformed_data
+                self.update_column_list()
+
+                # Visualiser les résultats
+                self.plot_results(original_data, transformed_data, 
+                                f"Auto {best_method.capitalize()}", 
+                                include_qqplot=True)
+
+                messagebox.showinfo("Auto Transformation", 
+                                  f"Best transformation detected: {best_method}\n"
+                                  f"Normality score: {score:.4f}\n"
+                                  f"New column '{new_col_name}' has been added.")
+            else:
+                messagebox.showinfo("Auto Transformation",
+                                  "Data is already in its best form.\nNo transformation needed.")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error in auto transformation: {str(e)}")
+
     def apply_advanced_normalize(self, method, dialog):
         """Applique la normalisation avancée selon la méthode choisie"""
         if self.df is None or self.selected_column is None:
@@ -357,6 +399,64 @@ class DataTransformationGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Error in advanced normalization: {str(e)}")
 
+    def detect_best_transformation(self, data):
+        """
+        Détecte automatiquement la meilleure transformation pour les données.
+
+        Parameters:
+            data (array-like): Données à analyser
+
+        Returns:
+            tuple: (meilleure_methode, score_normalite, donnees_transformees)
+        """
+        try:
+            # Liste des transformations à tester
+            transformations = {
+                'original': lambda x: x,
+                'zscore': lambda x: (x - np.mean(x)) / np.std(x),
+                'minmax': lambda x: (x - np.min(x)) / (np.max(x) - np.min(x)),
+                'log': lambda x: np.log(x) if np.all(x > 0) else None,
+                'sqrt': lambda x: np.sqrt(x) if np.all(x >= 0) else None,
+                'boxcox': lambda x: stats.boxcox(x)[0] if np.all(x > 0) else None
+            }
+
+            # Scores pour chaque transformation
+            scores = {}
+            transformed_data = {}
+
+            # Tester chaque transformation
+            for name, transform in transformations.items():
+                try:
+                    # Appliquer la transformation
+                    trans_data = transform(data)
+                    if trans_data is None:
+                        continue
+
+                    # Calculer les scores de normalité
+                    _, shapiro_p = stats.shapiro(trans_data)
+                    skewness = abs(stats.skew(trans_data))
+                    kurtosis = abs(stats.kurtosis(trans_data) - 3)  # 3 est la kurtosis d'une distribution normale
+
+                    # Score composite (plus il est élevé, plus la distribution est normale)
+                    score = shapiro_p - 0.3 * skewness - 0.3 * kurtosis
+
+                    scores[name] = score
+                    transformed_data[name] = trans_data
+
+                except Exception:
+                    continue
+                
+            # Trouver la meilleure transformation
+            if scores:
+                best_transform = max(scores.items(), key=lambda x: x[1])
+                return best_transform[0], best_transform[1], transformed_data[best_transform[0]]
+            else:
+                return 'original', 0, data
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error in transformation detection: {str(e)}")
+            return 'original', 0, data
+        
     def apply_transformation(self, transform_type): 
         """
         Applique une transformation aux données et affiche les résultats
