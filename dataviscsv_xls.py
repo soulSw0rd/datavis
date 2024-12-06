@@ -954,6 +954,28 @@ class DataTransformationGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Erreur lors de la visualisation: {str(e)}")
 
+    def save_to_csv(self):
+        """Sauvegarde les données transformées dans un fichier CSV"""
+        if self.df is None:
+            messagebox.showerror("Error", "Aucune donnée à sauvegarder!")
+            return
+
+        try:
+            # Ouvrir la boîte de dialogue pour choisir l'emplacement et le nom du fichier
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+                title="Sauvegarder les données"
+            )
+
+            if file_path:
+                # Sauvegarder le DataFrame au format CSV
+                self.df.to_csv(file_path, index=False)
+                messagebox.showinfo("Succès", "Données sauvegardées avec succès!")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Erreur lors de la sauvegarde: {str(e)}")
+
     def _add_statistics_text(self, original_data, transformed_data):
         """
         Ajoute un texte détaillé des statistiques pour les données originales et transformées.
@@ -1034,6 +1056,7 @@ def create_menu(root, app):
     file_menu.add_command(label="Load CSV", command=lambda: app.load_file("csv"))
     file_menu.add_command(label="Load Excel", command=lambda: app.load_file("excel"))
     file_menu.add_command(label="Load Example Data", command=app.load_example_data)
+    file_menu.add_command(label="Save to CSV", command=app.save_to_csv)
     file_menu.add_separator()
     file_menu.add_command(label="Exit", command=root.quit)
     
