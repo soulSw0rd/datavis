@@ -125,4 +125,4 @@ Feel free to submit issues, fork the repository, and create pull requests for an
 
 ## License
 
-This project is licensed under the GPL License - see the LICENSE file for details.
+This work is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International  License - see the LICENSE file for details.
